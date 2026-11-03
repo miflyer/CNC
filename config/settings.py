@@ -20,6 +20,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # Наши приложения
+    "accounts",
+    "market",
+    "trading",
+    "portfolio",
 ]
 
 # слои обработки запроса/ответа
