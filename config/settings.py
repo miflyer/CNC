@@ -47,7 +47,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"], # Порядок поиска шаблона: сначала папки из DIRS, потом templates/ каждого приложения.
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -86,4 +86,7 @@ USE_I18N = True # При True Django умеет переключать язык 
 USE_TZ = True # При True поле datetime будет aware (с таймзоной),
 
 STATIC_URL = "static/"
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
