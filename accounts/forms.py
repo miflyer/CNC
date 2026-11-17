@@ -6,7 +6,7 @@ class RegisterForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
     password_confirm = forms.CharField(
         widget=forms.PasswordInput,
-        label="Repeat Password",
+        label="Повторите пароль",
     )
 
     class Meta:
@@ -16,5 +16,5 @@ class RegisterForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         if cleaned_data.get("password") != cleaned_data.get("password_confirm"):
-            raise forms.ValidationError("You need exact same password")
+            raise forms.ValidationError("Пароли в полях должны быть идентичны")
         return cleaned_data

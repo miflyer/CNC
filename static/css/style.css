@@ -19,6 +19,21 @@ header a {
     margin-left: 16px;
 }
 
+header span {
+    color: #9aa5b1;
+}
+
+header button {
+    background: none;
+    border: 1px solid #7aa2f7;
+    color: #7aa2f7;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 12px;
+}
+
+
 main {
     padding: 24px;
 }

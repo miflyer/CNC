@@ -9,10 +9,22 @@
 <body>
     <header>
         <strong>CNC Exchange</strong>
+
         <nav>
             <a href="{% url 'index' %}">Рынок</a>
-            <a href="{% url 'register' %}">Регистрация</a>
+
+            {% if user.is_authenticated %}
+                <span>{{ user.username }}: {{ user.wallet.balance }} $</span>
+                <form method="post" action="{% url 'logout' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit">Выйти</button>
+                </form>
+            {% else %}
+                <a href="{% url 'register' %}">Регистрация</a>
+                <a href="{% url 'login' %}">Вход</a>
+            {% endif %}
         </nav>
+
     </header>
 
     <main>
