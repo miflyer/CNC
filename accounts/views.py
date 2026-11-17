@@ -1,3 +1,20 @@
-from django.shortcuts import render
+from django.contrib.auth import login
+from django.shortcuts import redirect, render
 
-# Create your views here.
+from .forms import RegisterForm
+from .models import Wallet
+
+
+def register(request):
+    if request.method == "POST":
+        form = RegisterForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)  # пока НЕ сохраняем в базу
+            user.set_password(form.cleaned_data["password"])  # хэшируем пароль
+            user.save()
+            Wallet.objects.create(user=user)  # кошелёк с 10000 на балансе
+            login(request, user)  # сразу авторизуем
+            return redirect("index")
+    else:
+        form = RegisterForm()
+    return render(request, "accounts/register.html", {"form": form})
