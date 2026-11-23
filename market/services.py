@@ -3,6 +3,10 @@
 Принцип: клиенты сайта НИКОГДА не ходят во внешние API напрямую.
 Команда update_prices периодически забирает котировки и свечи
 и складывает их в нашу базу. Сайт раздаёт пользователям свои данные.
+
+Источники крипты: сначала Binance (везде, кроме дата-центров США,
+где Binance отвечает 451/403), при недоступности — Kraken.
+У каждого источника свой формат ответа, см. _binance_* и _kraken_*.
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -15,19 +19,33 @@ from .models import Asset, Candle
 
 BINANCE_API = "https://api.binance.com"
 FRANKFURTER_API = "https://api.frankfurter.app"
+KRAKEN_API = "https://api.kraken.com/0/public"
 TIMEOUT = 15
 CRYPTO_INTERVALS = ("1h", "1d")
 FOREX_HISTORY_DAYS = 180
 
+# Kraken не торгует BNB, поэтому вместо него ADA.
+# Вторым элементом — «наследственный» код пары в ответах Kraken
+# (XBT там возвращается как XXBTZUSD).
+KRAKEN_PAIRS = {
+    "BTC": ("XBTUSD", "XXBTZUSD"),
+    "ETH": ("ETHUSD", "XETHZUSD"),
+    "SOL": ("SOLUSD", "SOLUSD"),
+    "ADA": ("ADAUSD", "ADAUSD"),
+}
+KRAKEN_INTERVALS = {"1h": 60, "1d": 1440}
+
 
 def _to_utc(ms_or_iso):
-    """Binance отдаёт миллисекунды, Frankfurter — дату 'YYYY-MM-DD'."""
+    """Binance отдаёт миллисекунды, Kraken — секунды, Frankfurter — дату."""
     if isinstance(ms_or_iso, (int, float)):
         return datetime.fromtimestamp(ms_or_iso / 1000, tz=timezone.utc)
     return datetime.fromisoformat(ms_or_iso).replace(tzinfo=timezone.utc)
 
 
-def fetch_crypto_quotes(assets):
+# ---------- Крипто: Binance ----------
+
+def _binance_quotes(assets):
     """Один пачечный запрос 24ч-тикеров Binance для всех крипто-активов."""
     symbols = ",".join(f'"{a.ticker}"' for a in assets)
     resp = requests.get(
@@ -48,7 +66,7 @@ def fetch_crypto_quotes(assets):
     Asset.objects.bulk_update(assets, ["current_price", "change_24h", "updated_at"])
 
 
-def fetch_binance_candles(asset, interval, limit=200):
+def _binance_candles(asset, interval, limit=200):
     resp = requests.get(
         f"{BINANCE_API}/api/v3/klines",
         params={"symbol": asset.ticker, "interval": interval, "limit": limit},
@@ -70,6 +88,82 @@ def fetch_binance_candles(asset, interval, limit=200):
     ]
     Candle.objects.bulk_create(candles, ignore_conflicts=True)
 
+
+# ---------- Крипто: Kraken (запасной, работает в США) ----------
+
+def _kraken_quotes(assets):
+    """Котировки Kraken: последняя цена + изменение с открытия дня (UTC)."""
+    kraken_assets = [a for a in assets if a.symbol in KRAKEN_PAIRS]
+    if not kraken_assets:
+        return
+    pairs = ",".join(KRAKEN_PAIRS[a.symbol][0] for a in kraken_assets)
+    resp = requests.get(f"{KRAKEN_API}/Ticker", params={"pair": pairs}, timeout=TIMEOUT)
+    resp.raise_for_status()
+    result = resp.json()["result"]
+    now = dj_timezone.now()
+    for asset in kraken_assets:
+        data = None
+        for key in KRAKEN_PAIRS[asset.symbol]:
+            data = result.get(key)
+            if data:
+                break
+        if not data:
+            continue
+        asset.current_price = Decimal(data["c"][0])  # c = [last, ...]
+        day_open = Decimal(data["o"])
+        asset.change_24h = ((asset.current_price - day_open) / day_open * 100).quantize(
+            Decimal("0.01")
+        )
+        asset.updated_at = now
+    Asset.objects.bulk_update(kraken_assets, ["current_price", "change_24h", "updated_at"])
+
+
+def _kraken_candles(asset, interval, limit=200):
+    """Свечи Kraken: [time, open, high, low, close, vwap, volume, count]."""
+    pair = KRAKEN_PAIRS[asset.symbol][0]
+    resp = requests.get(
+        f"{KRAKEN_API}/OHLC",
+        params={"pair": pair, "interval": KRAKEN_INTERVALS[interval]},
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    result = resp.json()["result"]
+    rows = next(v for k, v in result.items() if k != "last")  # там ровно одна пара
+    candles = [
+        Candle(
+            asset=asset,
+            interval=interval,
+            timestamp=datetime.fromtimestamp(int(row[0]), tz=timezone.utc),
+            open=row[1],
+            high=row[2],
+            low=row[3],
+            close=row[4],
+            volume=row[6],
+        )
+        for row in rows[-limit:]
+    ]
+    Candle.objects.bulk_create(candles, ignore_conflicts=True)
+
+
+# ---------- Крипто: фасад с автопереключением источника ----------
+
+def fetch_crypto_quotes(assets):
+    """Котировки: пробуем Binance, при недоступности — Kraken."""
+    try:
+        _binance_quotes(assets)
+    except requests.RequestException:
+        _kraken_quotes(assets)
+
+
+def fetch_crypto_candles(asset, interval, limit=200):
+    """Свечи: пробуем Binance, при недоступности — Kraken."""
+    try:
+        _binance_candles(asset, interval, limit)
+    except requests.RequestException:
+        _kraken_candles(asset, interval, limit)
+
+
+# ---------- Валюты: Frankfurter (данные ЕЦБ) ----------
 
 def fetch_forex_data(asset, days=FOREX_HISTORY_DAYS):
     """Frankfurter: одним запросом тянем дневные курсы за полгода.
@@ -115,6 +209,8 @@ def fetch_forex_data(asset, days=FOREX_HISTORY_DAYS):
     asset.save()
 
 
+# ---------- Оркестратор ----------
+
 def update_market_data():
     """Обновляет котировки и свечи всех активов. Возвращает список ошибок."""
     errors = []
@@ -126,11 +222,11 @@ def update_market_data():
         try:
             fetch_crypto_quotes(crypto)
         except requests.RequestException as exc:
-            errors.append(f"котировки Binance: {exc}")
+            errors.append(f"котировки крипты (Binance и Kraken недоступны): {exc}")
         for asset in crypto:
             for interval in CRYPTO_INTERVALS:
                 try:
-                    fetch_binance_candles(asset, interval)
+                    fetch_crypto_candles(asset, interval)
                 except requests.RequestException as exc:
                     errors.append(f"свечи {asset.symbol} {interval}: {exc}")
 
