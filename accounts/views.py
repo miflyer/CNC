@@ -2,7 +2,6 @@ from django.contrib.auth import login
 from django.shortcuts import redirect, render
 
 from .forms import RegisterForm
-from .models import Wallet
 
 
 def register(request):
@@ -12,7 +11,8 @@ def register(request):
             user = form.save(commit=False)  # пока НЕ сохраняем в базу
             user.set_password(form.cleaned_data["password"])  # хэшируем пароль
             user.save()
-            Wallet.objects.create(user=user)  # кошелёк с 10000 на балансе
+            # Кошелёк создаётся автоматически сигналом accounts/signals.py.
+            # Создавать его здесь второй раз нельзя — OneToOne даст IntegrityError.
             login(request, user)  # сразу авторизуем
             return redirect("index")
     else:
