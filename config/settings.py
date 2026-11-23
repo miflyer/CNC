@@ -1,4 +1,5 @@
 from pathlib import Path #Модуль для работы с путями
+import os  # для чтения переменных окружения (настройки деплоя)
 
 # Это корневая директория проекта
 # __file__ путь к текущему файлу (settings.py).
@@ -6,11 +7,22 @@ from pathlib import Path #Модуль для работы с путями
 # .parent берёт родительскую папку.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Пока ключ лежит тут, позже перенесём его в .env
-SECRET_KEY = "k#p$vn3ht8qe2_mcx@rwdkzp7mm2skqf5@xt%*17)6y&n=jo^"
+# Ключ читаем из окружения. В локальной разработке подставится значение по умолчанию,
+# на сервере задаём переменную SECRET_KEY (см. README, раздел «Деплой»).
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    "k#p$vn3ht8qe2_mcx@rwdkzp7mm2skqf5@xt%*17)6y&n=jo^",  # только для разработки!
+)
 
-DEBUG = True #В проде обязательно поменять
-ALLOWED_HOSTS = [] #Список доменов, которые разрешено обслуживать
+# DEBUG=0 в окружении сервера, локально переменная не задана -> True
+DEBUG = os.environ.get("DEBUG", "1") == "1"
+
+# Домены, которые разрешено обслуживать: "cnc.onrender.com" или несколько через запятую
+_raw_hosts = os.environ.get("ALLOWED_HOSTS", "")
+ALLOWED_HOSTS = [h.strip() for h in _raw_hosts.split(",") if h.strip()]
+
+# Секретный токен для URL-запуска обновления цен (бесплатный cron на хостинге)
+PRICE_UPDATE_TOKEN = os.environ.get("PRICE_UPDATE_TOKEN", "dev-token-12345")
 
 # список подключённых Django-приложений
 INSTALLED_APPS = [
@@ -32,6 +44,7 @@ INSTALLED_APPS = [
 # порядок важен
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # раздача статики без nginx
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -89,6 +102,7 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
+STATIC_ROOT = BASE_DIR / "staticfiles"  # сюда собирает collectstatic (для продакшена)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_REDIRECT_URL = "index"

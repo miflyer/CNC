@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, render
 from trading.models import Order, Position
 
 from .models import Asset
+from .services import update_market_data
 
 ALLOWED_INTERVALS = ("1h", "1d")
 
@@ -51,3 +52,23 @@ def prices_json(request):
     return JsonResponse(
         {a.symbol: {"price": f"{a.current_price.normalize():f}", "change": str(a.change_24h or 0)} for a in assets}
     )
+
+
+def price_update_trigger(request, token):
+    """Обновление цен и исполнение лимитных заявок по секретному URL.
+
+    Нужно для бесплатного хостинга: внешний cron (например, cron-job.org)
+    периодически дёргает https://<сайт>/update-prices/<токен>/ —
+    так цены свежие, а «уснувший» бесплатный сервис просыпается.
+    """
+    from django.conf import settings
+    from django.http import HttpResponseForbidden
+
+    if token != settings.PRICE_UPDATE_TOKEN:
+        return HttpResponseForbidden("Неверный токен")
+
+    from trading.services import process_pending_limit_orders
+
+    errors = update_market_data()
+    executed = process_pending_limit_orders()
+    return JsonResponse({"errors": errors, "limit_orders_executed": executed})

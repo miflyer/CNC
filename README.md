@@ -37,16 +37,31 @@ python manage.py update_prices --loop 60   # каждые 60 секунд
 python manage.py test
 ```
 
-## Деплой (Docker)
+## Деплой на Render (бесплатный тариф)
 
-```bash
-docker compose up --build
-```
+1. Залей проект на GitHub (`git push`).
+2. Зарегистрируйся на [render.com](https://render.com) → **New +** → **Web Service** → подключи репозиторий.
+3. Render сам обнаружит `Dockerfile` — ничего настраивать не нужно, жми **Deploy**. Миграции и посев активов выполнятся автоматически (они в CMD образа).
+4. В разделе **Environment** задай переменные:
 
-Поднимет веб-сервер (gunicorn) и фоновый обновляль цен.
-ВНИМАНИЕ: compose-конфиг с SQLite — демонстрационный. Для настоящего продакшена
-замени БД на PostgreSQL, вынеси SECRET_KEY в `.env`, задай `DEBUG = False`
-и `ALLOWED_HOSTS`.
+   | Переменная | Значение |
+   |---|---|
+   | `SECRET_KEY` | `python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"` |
+   | `DEBUG` | `0` |
+   | `ALLOWED_HOSTS` | `<имя-приложения>.onrender.com` |
+   | `PRICE_UPDATE_TOKEN` | любая длинная случайная строка |
+
+5. **Обновление цен без платного фона:** на [cron-job.org](https://cron-job.org) (бесплатно) создай задачу: каждые 10–15 минут, URL
+   `https://<имя-приложения>.onrender.com/update-prices/<PRICE_UPDATE_TOKEN>/`.
+   Одним махом: цены свежие, лимитные заявки исполняются, а «уснувший» после 15 минут простоя бесплатный сервис будится.
+
+**Ограничения бесплатного тарифа Render (2026):** 750 часов/мес, 512 МБ RAM,
+~5 ГБ трафика, сон после 15 минут без запросов (cold start ~1 мин),
+файловая система пересоздаётся при redeploy — SQLite вместе с аккаунтами
+игроков обнулится. Для учебной биржи терпимо; для серьёзного продакшена:
+PostgreSQL (`$6+/мес`) и постоянный диск.
+
+Локальная проверка деплоя: `docker compose up --build`.
 
 ## Архитектура
 
