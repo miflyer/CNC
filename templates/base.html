@@ -12,8 +12,11 @@
 
         <nav>
             <a href="{% url 'index' %}">Рынок</a>
+            <a href="{% url 'leaderboard' %}">Рейтинг</a>
 
             {% if user.is_authenticated %}
+                <a href="{% url 'portfolio' %}">Портфель</a>
+                <a href="{% url 'history' %}">История</a>
                 <span>{{ user.username }}: {{ user.wallet.balance }} $</span>
                 <form method="post" action="{% url 'logout' %}" style="display: inline;">
                     {% csrf_token %}
@@ -24,10 +27,17 @@
                 <a href="{% url 'login' %}">Вход</a>
             {% endif %}
         </nav>
-
     </header>
 
     <main>
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
         {% block content %}{% endblock %}
     </main>
 </body>

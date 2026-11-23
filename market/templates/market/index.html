@@ -1,13 +1,63 @@
 {% extends "base.html" %}
 
-{% block title %}{{ title }}{% endblock %}
+{% block title %}Рынок — Биржа CNC{% endblock %}
 
 {% block content %}
-    <h1>{{ title }}</h1>
+    <h1>Рынок</h1>
 
-    <ul>
-        {% for asset in assets %}
-            <li>{{ asset.name }} — {{ asset.price }} $</li>
-        {% endfor %}
-    </ul>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Актив</th>
+                <th>Цена, $</th>
+                <th>24ч, %</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in assets %}
+                <tr>
+                    <td>
+                        <a href="{% url 'asset_detail' a.symbol %}"><strong>{{ a.symbol }}</strong></a>
+                        <span class="muted">{{ a.name }}</span>
+                    </td>
+                    <td class="js-price" data-symbol="{{ a.symbol }}">{{ a.current_price }}</td>
+                    <td class="js-change {% if a.change_24h >= 0 %}positive{% else %}negative{% endif %}" data-symbol="{{ a.symbol }}">
+                        {{ a.change_24h }} %
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="3">
+                        Цен пока нет. Запусти <code>python manage.py update_prices</code>
+                        и обнови страницу.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        // Этап 8: обновление цен polling'ом каждые 10 секунд
+        async function refreshPrices() {
+            try {
+                const resp = await fetch("{% url 'prices' %}");
+                const data = await resp.json();
+                document.querySelectorAll(".js-price").forEach(cell => {
+                    const item = data[cell.dataset.symbol];
+                    if (item) cell.textContent = item.price;
+                });
+                document.querySelectorAll(".js-change").forEach(cell => {
+                    const item = data[cell.dataset.symbol];
+                    if (!item) return;
+                    const change = parseFloat(item.change);
+                    cell.textContent = item.change + " %";
+                    cell.className = "js-change " + (change >= 0 ? "positive" : "negative");
+                    cell.dataset.symbol = cell.dataset.symbol;
+                });
+            } catch (e) {
+                // Сервер недоступен — оставляем старые цены
+            }
+        }
+        setInterval(refreshPrices, 10000);
+    </script>
 {% endblock %}

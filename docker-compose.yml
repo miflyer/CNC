@@ -1,0 +1,14 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      - updater
+
+  # Фоновый обновляль цен и исполнитель лимитных заявок
+  updater:
+    build: .
+    env_file: .env
+    command: sh -c "python manage.py migrate && python manage.py seed_assets && python manage.py update_prices --loop 60"

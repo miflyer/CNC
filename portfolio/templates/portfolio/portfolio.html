@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Портфель — Биржа CNC{% endblock %}
+
+{% block content %}
+    <h1>Портфель</h1>
+
+    <div class="cards">
+        <div class="card">Свободные средства<strong>{{ wallet.balance }} $</strong></div>
+        <div class="card">Активы<strong>{{ positions_value }} $</strong></div>
+        <div class="card">Общая стоимость<strong>{{ equity }} $</strong></div>
+        <div class="card">PnL
+            <strong class="{% if pnl >= 0 %}positive{% else %}negative{% endif %}">
+                {{ pnl }} $ ({{ pnl_percent }} %)
+            </strong>
+        </div>
+    </div>
+
+    <h2>Позиции</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Актив</th><th>Количество</th><th>Средняя цена</th>
+                <th>Текущая цена</th><th>Стоимость</th><th>PnL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td><a href="{% url 'asset_detail' row.position.asset.symbol %}">{{ row.position.asset.symbol }}</a></td>
+                    <td>{{ row.position.quantity }}</td>
+                    <td>{{ row.position.avg_price }}</td>
+                    <td>{{ row.price }}</td>
+                    <td>{{ row.value }}</td>
+                    <td class="{% if row.pnl >= 0 %}positive{% else %}negative{% endif %}">{{ row.pnl }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6">Позиций нет — самое время что-нибудь купить на <a href="{% url 'index' %}">рынке</a>.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if pending_orders %}
+        <h2>Открытые заявки</h2>
+        <table class="table">
+            <thead>
+                <tr><th>Актив</th><th>Тип</th><th>Количество</th><th>Цена</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for order in pending_orders %}
+                    <tr>
+                        <td>{{ order.asset.symbol }}</td>
+                        <td>{{ order.get_side_display }} ({{ order.get_order_type_display }})</td>
+                        <td>{{ order.quantity }}</td>
+                        <td>{{ order.price }}</td>
+                        <td>
+                            <form method="post" action="{% url 'cancel_order' order.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-cancel">Отменить</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <p><a href="{% url 'history' %}">История сделок →</a></p>
+{% endblock %}

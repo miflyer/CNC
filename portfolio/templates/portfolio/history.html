@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}История сделок — Биржа CNC{% endblock %}
+
+{% block content %}
+    <h1>История сделок</h1>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Время</th><th>Актив</th><th>Сторона</th><th>Количество</th><th>Цена</th><th>Сумма</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for trade in page_obj %}
+                <tr>
+                    <td>{{ trade.created_at|date:"d.m.Y H:i" }}</td>
+                    <td>{{ trade.asset.symbol }}</td>
+                    <td class="{% if trade.side == 'buy' %}positive{% else %}negative{% endif %}">
+                        {{ trade.get_side_display }}
+                    </td>
+                    <td>{{ trade.quantity }}</td>
+                    <td>{{ trade.price }}</td>
+                    <td>{{ trade.total }} $</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6">Сделок пока не было.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+        <p class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}">← Новее</a>
+            {% endif %}
+            Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">Старее →</a>
+            {% endif %}
+        </p>
+    {% endif %}
+{% endblock %}

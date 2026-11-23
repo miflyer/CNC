@@ -3,5 +3,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path("", views.index, name="index"), #index здесь это имя маршрута
+    path("", views.index, name="index"),
+    path("prices/", views.prices_json, name="prices"),
+    path("asset/<str:symbol>/", views.asset_detail, name="asset_detail"),
+    path("asset/<str:symbol>/candles/", views.asset_candles, name="asset_candles"),
 ]

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}{{ asset.symbol }} — Биржа CNC{% endblock %}
+
+{% block content %}
+    <div class="asset-head">
+        <h1>{{ asset.name }} <span class="muted">{{ asset.symbol }}/USD</span></h1>
+        <p class="big-price">
+            <span id="js-price">{{ asset.current_price }}</span> $
+            <span id="js-change" class="{% if asset.change_24h >= 0 %}positive{% else %}negative{% endif %}">
+                {{ asset.change_24h }} % за 24ч
+            </span>
+        </p>
+    </div>
+
+    <div id="chart"></div>
+
+    <p class="intervals">
+        Интервал:
+        {% for i in intervals %}
+            <button type="button" data-interval="{{ i }}">{{ i }}</button>
+        {% endfor %}
+    </p>
+
+    {% if user.is_authenticated %}
+        <section class="trade-panel">
+            <h2>Торговля</h2>
+
+            {% if position %}
+                <p>
+                    Ваша позиция: <strong>{{ position.quantity }} {{ asset.symbol }}</strong>
+                    (средняя цена входа {{ position.avg_price }})
+                </p>
+            {% endif %}
+
+            <form method="post" action="{% url 'place_order' %}" class="trade-form">
+                {% csrf_token %}
+                <input type="hidden" name="asset" value="{{ asset.pk }}">
+                <input type="hidden" name="asset_symbol" value="{{ asset.symbol }}">
+                <input type="hidden" name="order_type" value="market">
+                <label>Количество
+                    <input type="number" name="quantity" step="0.00000001" min="0" required>
+                </label>
+                <button type="submit" name="side" value="buy" class="btn-buy">Купить</button>
+                <button type="submit" name="side" value="sell" class="btn-sell">Продать</button>
+            </form>
+
+            <form method="post" action="{% url 'place_order' %}" class="trade-form">
+                {% csrf_token %}
+                <input type="hidden" name="asset" value="{{ asset.pk }}">
+                <input type="hidden" name="asset_symbol" value="{{ asset.symbol }}">
+                <input type="hidden" name="order_type" value="limit">
+                <label>Количество
+                    <input type="number" name="quantity" step="0.00000001" min="0" required>
+                </label>
+                <label>Цена лимита
+                    <input type="number" name="limit_price" step="0.01" min="0" required>
+                </label>
+                <button type="submit" name="side" value="buy" class="btn-buy">Лимитная покупка</button>
+                <button type="submit" name="side" value="sell" class="btn-sell">Лимитная продажа</button>
+            </form>
+
+            {% if pending_orders %}
+                <h3>Открытые заявки</h3>
+                <table class="table">
+                    <thead>
+                        <tr><th>Тип</th><th>Количество</th><th>Цена</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        {% for order in pending_orders %}
+                            <tr>
+                                <td>{{ order.get_side_display }} ({{ order.get_order_type_display }})</td>
+                                <td>{{ order.quantity }}</td>
+                                <td>{{ order.price }}</td>
+                                <td>
+                                    <form method="post" action="{% url 'cancel_order' order.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-cancel">Отменить</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </section>
+    {% else %}
+        <p><a href="{% url 'login' %}">Войдите</a> или <a href="{% url 'register' %}">зарегистрируйтесь</a>, чтобы торговать.</p>
+    {% endif %}
+
+    <script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        const chart = LightweightCharts.createChart(document.getElementById("chart"), {
+            layout: { background: { type: "solid", color: "#0e1420" }, textColor: "#e6e9ef" },
+            grid: { vertLines: { color: "#1c2733" }, horzLines: { color: "#1c2733" } },
+            timeScale: { borderColor: "#1c2733", timeVisible: true },
+            height: 420,
+        });
+        const series = chart.addCandlestickSeries({
+            upColor: "#26a69a", downColor: "#ef5350",
+            borderVisible: false,
+            wickUpColor: "#26a69a", wickDownColor: "#ef5350",
+        });
+
+        async function loadCandles(interval) {
+            const resp = await fetch("{% url 'asset_candles' asset.symbol %}?interval=" + interval);
+            const data = await resp.json();
+            series.setData(data.candles);
+            chart.timeScale().fitContent();
+        }
+        loadCandles("{{ default_interval }}");
+        document.querySelectorAll("[data-interval]").forEach(btn =>
+            btn.addEventListener("click", () => loadCandles(btn.dataset.interval))
+        );
+
+        // Обновление текущей цены каждые 5 секунд
+        setInterval(async () => {
+            try {
+                const resp = await fetch("{% url 'prices' %}");
+                const data = await resp.json();
+                const item = data["{{ asset.symbol }}"];
+                if (!item) return;
+                document.getElementById("js-price").textContent = item.price;
+                const changeEl = document.getElementById("js-change");
+                changeEl.textContent = item.change + " % за 24ч";
+                changeEl.className = parseFloat(item.change) >= 0 ? "positive" : "negative";
+            } catch (e) { /* оставляем старую цену */ }
+        }, 5000);
+    </script>
+{% endblock %}

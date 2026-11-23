@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Рейтинг игроков — Биржа CNC{% endblock %}
+
+{% block content %}
+    <h1>Рейтинг игроков</h1>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th><th>Игрок</th><th>Капитал</th><th>PnL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ row.username }}</td>
+                    <td>{{ row.equity }} $</td>
+                    <td class="{% if row.pnl >= 0 %}positive{% else %}negative{% endif %}">
+                        {{ row.pnl }} $ ({{ row.pnl_percent }} %)
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4">Игроков пока нет.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
