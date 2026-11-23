@@ -50,6 +50,14 @@ python manage.py test
    | `DEBUG` | `0` |
    | `ALLOWED_HOSTS` | `<имя-приложения>.onrender.com` |
    | `PRICE_UPDATE_TOKEN` | любая длинная случайная строка |
+   | `DATABASE_URL` | строка подключения Neon (см. ниже) — без неё база будет SQLite и сбросится при перезапуске |
+
+**База данных, которая не сбрасывается:** бесплатный инстанс Render стирает файловую
+систему при перезапусках, поэтому SQLite там ненадёжна. Решение — внешний PostgreSQL:
+зарегистрируйся на [neon.tech](https://neon.tech) (вход через GitHub) → **New Project** →
+скопируй строку подключения (Connection Details → «postgresql://...») и вставь её
+в `DATABASE_URL` на Render. После следующего деплоя миграции создадут таблицы в Neon,
+и данные игроков переживут любые пересборки.
 
 5. **Обновление цен без платного фона:** на [cron-job.org](https://cron-job.org) (бесплатно) создай задачу: каждые 10–15 минут, URL
    `https://<имя-приложения>.onrender.com/update-prices/<PRICE_UPDATE_TOKEN>/`.
